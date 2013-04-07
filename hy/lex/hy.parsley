@@ -1,0 +1,85 @@
+# Grammar for the Hy language.
+# Copyright (c) 2013 Nicolas Dandrimont <nicolas.dandrimont@crans.org>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
+# Whitespace and comments
+hspace = ' ' | '\t' | comment
+vspace = '\r\n' | '\r' | '\n'
+comment = ';' (~vspace anything)*
+ws = (hspace | vspace | comment)+
+
+# Those are the non-whitespace characters we don't want to consume when lexing an identifier
+special = :x ?(x in "(){}[]'\",")
+
+# The root node is composed of zero or more parenthesized expressions separated by whitespace
+root = non_empty_root | empty_root
+non_empty_root = (hashbang? ws? parens:first (ws parens)*:rest ws? end -> self.emit('root', first, *rest))
+empty_root = hashbang? ws? -> self.emit('root')
+
+hashbang = '#' '!' (~vspace anything)*
+
+# A parenthesized expression
+parens = '(' list_contents:contents ws? ')' -> self.emit('parens', *contents)
+
+# A listey thing (parens, dict, list) contains a (possibly empty) suite of whitespace-separated terms
+list_contents = non_empty_list_contents | -> []
+non_empty_list_contents = (term:first (ws? term)*:rest) -> [first] + rest
+
+# A term can be several kinds of things
+# please keep the "identifier" at the end, as it basically eats everything...
+term = string | quoted | unquoted | list | dict | parens | number | identifier
+
+# A quoted term
+quoted = '\'' term:term -> self.emit('quoted', term)
+
+# An unquoted term
+unquoted = ',' term:term -> self.emit('unquoted', term)
+
+# A list
+list = '[' list_contents:contents ws? ']' -> self.emit('list', *contents)
+
+# A dict
+dict = '{' list_contents:contents ws? '}' -> self.emit('dict', *contents)
+
+# A string
+string = '"' (escapedChar | ~('"' | '\\') anything)*:st '"' -> self.emit('string', ''.join(st))
+
+escapedChar = '\\' (
+    ('"' -> '"') |
+    ('/' -> '/') |
+    ('b' -> '\b') |
+    ('f' -> '\f') |
+    ('n' -> '\n') |
+    ('r' -> '\r') |
+    ('t' -> '\t') |
+    ('\\' -> '\\')
+)
+
+# A number
+number = <('-')? digit+>:number -> self.emit('number', number)
+
+# Or an identifier
+identifier = special_identifier | litteral_identifier
+
+# Single "special char" identifier
+special_identifier = ((','):t ~~ws -> self.emit('identifier', t))
+
+# The rest of the identifier crowd
+litteral_identifier = <(~(special | ws) anything)+>:t -> self.emit('identifier', t)

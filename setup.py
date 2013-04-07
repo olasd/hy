@@ -50,6 +50,8 @@ setup(
     license="Expat",
     url="http://hy.pault.ag/",
     platforms=['any'],
+    setup_requires=['parsley'],
+    install_requires=['parsley'],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

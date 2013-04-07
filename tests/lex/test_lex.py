@@ -24,9 +24,7 @@ from hy.models.symbol import HySymbol
 from hy.models.string import HyString
 from hy.models.dict import HyDict
 
-from hy.lex.states import LexException
-
-from hy.lex import tokenize
+from hy.lex import tokenize, LexException
 
 
 def test_lex_exception():
@@ -120,8 +118,8 @@ def test_lex_line_counting_multi_inner():
 
 def test_dicts():
     """ Ensure that we can tokenize a dict. """
-    objs = tokenize("{foo bar bar baz}")
-    assert objs == [HyDict({
+    objs = tokenize("({foo bar bar baz})")
+    assert objs[0] == [HyDict({
         "foo": "bar",
         "bar": "baz"
     })]

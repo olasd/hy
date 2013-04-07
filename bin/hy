@@ -17,8 +17,7 @@ import readline
 import code
 import ast
 
-from hy.lex.states import Idle, LexException
-from hy.lex.machine import Machine
+from hy.lex import tokenize, LexException
 from hy.compiler import hy_compile
 from hy.core import process
 
@@ -30,27 +29,20 @@ from hy.models.string import HyString
 from hy.models.symbol import HySymbol
 
 
-_machine = Machine(Idle, 1, 0)
-
-
 class HyREPL(code.InteractiveConsole):
     def runsource(self, source, filename='<input>', symbol='single'):
-        global _machine
-
         try:
-            _machine.process(source + "\n")
+            nodes = tokenize(source + "\n")
         except LexException as e:
-            _machine = Machine(Idle, 1, 0)
+            if e.position == len(e.input):
+                # We caught EOF, let's indent
+                return True
+
             self.showsyntaxerror(filename)
             return False
 
-        if type(_machine.state) != Idle:
-            _machine = Machine(Idle, 1, 0)
-            return True
+        tokens = process(nodes)
 
-        tokens = process(_machine.nodes)
-
-        _machine = Machine(Idle, 1, 0)
         try:
             _ast = hy_compile(tokens, root=ast.Interactive)
             code = compile(_ast, filename, symbol)

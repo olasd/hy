@@ -1,4 +1,5 @@
 # Copyright (c) 2013 Paul Tagliamonte <paultag@debian.org>
+#                    Nicolas Dandrimont <nicolas.dandrimont@crans.org>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -18,16 +19,22 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from hy.lex.machine import Machine
-from hy.lex.states import Idle, LexException
+from parsley import ParseError
+
+from hy.lex.grammar import HyGrammar, LexException
+
+
+__all__ = ['tokenize', 'LexException']
 
 
 def tokenize(buf):
     """
     Tokenize a Lisp file or string buffer into internal Hy objects.
     """
-    machine = Machine(Idle, 1, 0)
-    machine.process(buf)
-    if type(machine.state) != Idle:
-        raise LexException("Incomplete Lex.")
-    return machine.nodes
+    parsed_buf = HyGrammar(buf)
+    try:
+        ret = parsed_buf.root()
+    except ParseError as e:
+        raise LexException.from_parseerror(e)
+
+    return ret
