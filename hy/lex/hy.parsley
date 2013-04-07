@@ -43,8 +43,7 @@ list_contents = non_empty_list_contents | -> []
 non_empty_list_contents = (term:first (ws? term)*:rest) -> [first] + rest
 
 # A term can be several kinds of things
-# please keep the "identifier" at the end, as it basically eats everything...
-term = string | quoted | unquoted | list | dict | parens | number | identifier
+term = identifier | parens | list | dict | string | quoted | unquoted
 
 # A quoted term
 quoted = '\'' term:term -> self.emit('quoted', term)
@@ -71,9 +70,6 @@ escapedChar = '\\' (
     ('t' -> '\t') |
     ('\\' -> '\\')
 )
-
-# A number
-number = <('-')? digit+>:number -> self.emit('number', number)
 
 # Or an identifier
 identifier = special_identifier | litteral_identifier

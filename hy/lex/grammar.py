@@ -62,6 +62,11 @@ def emit_symbol(contents):
 
     obj = contents[0]
 
+    try:
+        return HyInteger(obj)
+    except:
+        pass
+
     if obj in table:
         return HySymbol(table[obj])
 
@@ -79,7 +84,6 @@ class HyGrammarBase(OMetaBase):
         "dict": emit_dict,
         "identifier": emit_symbol,
         "list": HyList,
-        "number": lambda contents: HyInteger(*contents),
         "parens": HyExpression,
         "root": list,
         "string": lambda contents: HyString(*contents),
@@ -96,8 +100,11 @@ class HyGrammarBase(OMetaBase):
         self.__linecounts = linecounts
         self.curpos = []
 
-    def pos(self, adapt=0):
-        pos = self.input.position + adapt
+    @property
+    def pos(self):
+        return self.input.position
+
+    def decode_pos(self, pos):
         prevcount = 0
         for lineNo, count in enumerate(self.__linecounts):
             if pos < count:
@@ -108,12 +115,12 @@ class HyGrammarBase(OMetaBase):
 
     @property
     def boundaries(self):
-        end = self.pos(-1)
-        return self.curpos[-1], end
+        end = self.pos - 1
+        return self.decode_pos(self.curpos[-1]), self.decode_pos(end)
 
     def _apply(self, rule, ruleName, args):
         try:
-            self.curpos.append(self.pos())
+            self.curpos.append(self.pos)
             ret = super(HyGrammarBase, self)._apply(rule, ruleName, args)
         finally:
             self.curpos.pop()
