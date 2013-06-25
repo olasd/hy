@@ -26,6 +26,8 @@ from hy.models.complex import HyComplex
 from hy.models.symbol import HySymbol
 from hy.models.string import HyString
 from hy.models.dict import HyDict
+from hy.models.list import HyList
+from hy.models.cons import HyCons
 
 from hy.lex import LexException, PrematureEndOfInput, tokenize
 
@@ -266,3 +268,39 @@ def test_lex_comment_382():
     """Ensure that we can tokenize sources with a comment at the end"""
     entry = tokenize("foo ;bar\n;baz")
     assert entry == [HySymbol("foo")]
+
+
+def test_cons_wrong_nargs():
+    """Ensure cons checks the right number of args"""
+    try:
+        tokenize("(cons)")
+        assert True is False
+    except LexException:
+        pass
+    try:
+        tokenize("(cons a)")
+        assert True is False
+    except LexException:
+        pass
+    try:
+        tokenize("(cons a b c)")
+        assert True is False
+    except LexException:
+        pass
+    assert True
+
+
+def test_simple_cons():
+    """Check that cons gets tokenized correctly"""
+    entry = tokenize("(cons a b)")[0]
+    assert entry == HyCons(HySymbol("a"), HySymbol("b"))
+
+
+def test_cons_list():
+    """Check that cons of something and a list gets tokenized as a list"""
+    entry = tokenize("(cons a [])")[0]
+    assert entry == HyList([HySymbol("a")])
+    assert type(entry) == HyList
+    entry = tokenize("(cons a ())")[0]
+    assert entry == HyExpression([HySymbol("a")])
+    assert type(entry) == HyExpression

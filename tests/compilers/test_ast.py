@@ -464,3 +464,8 @@ def test_for_compile_error():
         assert(e.message == "`for' requires a body to evaluate")
     else:
         assert(False)
+
+
+def test_cons_correct():
+    """Ensure cons gets compiled correctly"""
+    can_compile("(cons a b)")
