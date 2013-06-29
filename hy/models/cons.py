@@ -18,6 +18,8 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import itertools
+
 from hy.models import HyObject
 
 
@@ -60,6 +62,9 @@ class HyCons(HyObject):
 
         raise IndexError(
             "Can only set the car ([0]) or the cdr ([1:]) of a HyCons")
+
+    def __iter__(self):
+        return itertools.chain([self.car], iter(self.cdr))
 
     def replace(self, other):
         if self.car is not None:
