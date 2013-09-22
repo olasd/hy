@@ -103,6 +103,13 @@ _compile_table = {}
 
 
 def ast_str(foobar):
+    if not isinstance(foobar, (str_type, str)):
+        raise HyTypeError(
+            foobar,
+            "received a `{0}' instead of a string".format(
+                type(foobar).__name__),
+        )
+
     if sys.version_info[0] >= 3:
         return str(foobar)
 
@@ -461,6 +468,12 @@ class HyASTCompiler(object):
         kwargs = None
         lambda_keyword = None
 
+        if not isinstance(exprs, HyList):
+            raise HyTypeError(exprs,
+                              "received a `{0}' instead of a lambda-list in "
+                              "function definition".format(
+                                  type(exprs).__name__))
+
         for expr in exprs:
 
             if isinstance(expr, HyLambdaListKeyword):
@@ -488,18 +501,22 @@ class HyASTCompiler(object):
                 continue
 
             if lambda_keyword is None:
+                if not isinstance(expr, HySymbol):
+                    raise HyTypeError(expr,
+                                      "received a `{0}' instead of a symbol "
+                                      "in lambda-list".format(
+                                          type(expr).__name__))
+
                 args.append(expr)
             elif lambda_keyword == "&rest":
                 if varargs:
                     raise HyTypeError(expr,
-                                      "There can only be one "
-                                      "&rest argument")
+                                      "There can only be one &rest argument")
                 varargs = str(expr)
             elif lambda_keyword == "&key":
                 if type(expr) != HyDict:
                     raise HyTypeError(expr,
-                                      "There can only be one &key "
-                                      "argument")
+                                      "There can only be one &key argument")
                 else:
                     if len(defaults) > 0:
                         raise HyTypeError(expr,
@@ -534,18 +551,18 @@ class HyASTCompiler(object):
 
         return ret, args, defaults, varargs, kwargs
 
-    def _storeize(self, name):
+    def _storeize(self, name, expr):
         """Return a new `name` object with an ast.Store() context"""
         if isinstance(name, Result):
             if not name.is_expr():
-                raise TypeError("Can't assign to a non-expr")
+                raise HyTypeError(expr, "Can't assign to a non-expr")
             name = name.expr
 
         if isinstance(name, (ast.Tuple, ast.List)):
             typ = type(name)
             new_elts = []
             for x in name.elts:
-                new_elts.append(self._storeize(x))
+                new_elts.append(self._storeize(x, expr))
             new_name = typ(elts=new_elts)
         elif isinstance(name, ast.Name):
             new_name = ast.Name(id=name.id, arg=name.arg)
@@ -554,7 +571,7 @@ class HyASTCompiler(object):
         elif isinstance(name, ast.Attribute):
             new_name = ast.Attribute(value=name.value, attr=name.attr)
         else:
-            raise TypeError("Can't assign to a %s object" % type(name))
+            raise HyTypeError(expr, "Can't assign to a %s object" % type(name))
 
         new_name.ctx = ast.Store()
         ast.copy_location(new_name, name)
@@ -862,7 +879,7 @@ class HyASTCompiler(object):
                 name = ast_str(name)
             else:
                 # Python2 requires an ast.Name, set to ctx Store.
-                name = self._storeize(self.compile(name))
+                name = self._storeize(self.compile(name), expr)
         else:
             name = None
 
@@ -1023,6 +1040,8 @@ class HyASTCompiler(object):
     def compile_global_expression(self, expr):
         expr.pop(0)  # global
         e = expr.pop(0)
+        if not isinstance(e, HySymbol):
+            raise HyTypeError(expr, "`global` can only be used with a symbol")
         return ast.Global(names=[ast_str(e)],
                           lineno=e.start_line,
                           col_offset=e.start_column)
@@ -1198,7 +1217,8 @@ class HyASTCompiler(object):
 
         thing = None
         if args != []:
-            thing = self._storeize(self.compile(args.pop(0)))
+            thing = args.pop(0)
+            thing = self._storeize(self.compile(thing), thing)
 
         body = self._compile_branch(expr)
 
@@ -1260,7 +1280,7 @@ class HyASTCompiler(object):
         generators = []
         for target, iterable in targets:
             comp_target = self.compile(target)
-            target = self._storeize(comp_target)
+            target = self._storeize(comp_target, target)
             generator_res += self.compile(iterable)
             generators.append(ast.comprehension(
                 target=target,
@@ -1452,7 +1472,7 @@ class HyASTCompiler(object):
 
         op = ops[expression[0]]
 
-        target = self._storeize(self.compile(expression[1]))
+        target = self._storeize(self.compile(expression[1]), expression[1])
         ret = self.compile(expression[2])
 
         ret += ast.AugAssign(
@@ -1504,9 +1524,14 @@ class HyASTCompiler(object):
 
         if not func:
             func = self.compile(fn)
+
+        func_expr = func.expr
+        if not isinstance(func_expr, ast.expr):
+            raise HyTypeError(expression, "Can't call a non-expression")
+
         args, ret = self._compile_collect(expression[1:])
 
-        ret += ast.Call(func=func.expr,
+        ret += ast.Call(func=func_expr,
                         args=args,
                         keywords=[],
                         starargs=None,
@@ -1533,7 +1558,7 @@ class HyASTCompiler(object):
             return result
 
         ld_name = self.compile(name)
-        st_name = self._storeize(ld_name)
+        st_name = self._storeize(ld_name, name)
 
         result += ast.Assign(
             lineno=start_line,
@@ -1546,9 +1571,16 @@ class HyASTCompiler(object):
     @builds("foreach")
     @checkargs(min=1)
     def compile_for_expression(self, expression):
-        expression.pop(0)  # for
+        expression.pop(0)  # foreach
+
+        if not isinstance(expression[0], HyList) or len(expression[0]) != 2:
+            raise HyTypeError(
+                expression,
+                "`foreach` needs [target iterable] as first argument")
+
         target_name, iterable = expression.pop(0)
-        target = self._storeize(self.compile(target_name))
+
+        target = self._storeize(self.compile(target_name), target_name)
 
         ret = Result()
 
@@ -1680,8 +1712,11 @@ class HyASTCompiler(object):
         if expression:
             base_list = expression.pop(0)
             if not isinstance(base_list, HyList):
-                raise HyTypeError(expression,
-                                  "Bases class must be a list")
+                raise HyTypeError(
+                    base_list,
+                    "received a `{0}' instead of a list for base "
+                    "classes".format(type(base_list).__name__),
+                )
             bases_expr, bases = self._compile_collect(base_list)
         else:
             bases_expr = []
@@ -1701,17 +1736,23 @@ class HyASTCompiler(object):
             body += body.expr_as_stmt()
 
         if expression:
-            try:
-                body_expression = iter(expression.pop(0))
-            except TypeError:
+            body_expression = expression.pop(0)
+            if not isinstance(body_expression, HyList):
                 raise HyTypeError(
-                    expression,
-                    "Wrong argument type for defclass slots definition.")
+                    body_expression,
+                    "Received `{0}' instead of list for defclass slots "
+                    "definition.".format(type(body_expression).__name__))
             for b in body_expression:
+                if not isinstance(b, HyList):
+                    raise HyTypeError(
+                        b,
+                        "received `{0}' instead of list for defclass slot "
+                        "definition.".format(type(b).__name__))
                 if len(b) != 2:
                     raise HyTypeError(
-                        expression,
-                        "Wrong number of argument in defclass slot.")
+                        b,
+                        "each defclass slot definition needs to be a name and "
+                        "a value")
                 body += self._compile_assign(b[0], b[1],
                                              b.start_line, b.start_column)
                 body += body.expr_as_stmt()
