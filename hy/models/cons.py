@@ -20,7 +20,9 @@
 
 import itertools
 
+from hy.macros import _wrap_value
 from hy.models import HyObject
+from hy.models.expression import HyExpression
 
 
 class HyCons(HyObject):
@@ -34,14 +36,17 @@ class HyCons(HyObject):
 
     def __new__(cls, car, cdr):
         if isinstance(cdr, list):
-            return cdr.__class__([car] + cdr)
+            return cdr.__class__([_wrap_value(car)] + cdr)
+
+        elif cdr is None:
+            return HyExpression([_wrap_value(car)])
 
         else:
             return super(HyCons, cls).__new__(cls)
 
     def __init__(self, car, cdr):
-        self.car = car
-        self.cdr = cdr
+        self.car = _wrap_value(car)
+        self.cdr = _wrap_value(cdr)
 
     def __getitem__(self, n):
         if n == 0:
@@ -64,7 +69,16 @@ class HyCons(HyObject):
             "Can only set the car ([0]) or the cdr ([1:]) of a HyCons")
 
     def __iter__(self):
-        return itertools.chain([self.car], iter(self.cdr))
+        yield self.car
+        try:
+            iterator = (i for i in self.cdr)
+        except TypeError:
+            if self.cdr is not None:
+                yield self.cdr
+                raise TypeError("Iteration on malformed cons")
+        else:
+            for i in iterator:
+                yield i
 
     def replace(self, other):
         if self.car is not None:
@@ -75,7 +89,10 @@ class HyCons(HyObject):
         HyObject.replace(self, other)
 
     def __repr__(self):
-        return "(%s . %s)" % (repr(self.car), repr(self.cdr))
+        if isinstance(self.cdr, self.__class__):
+            return "(%s %s)" % (repr(self.car), repr(self.cdr)[1:-1])
+        else:
+            return "(%s . %s)" % (repr(self.car), repr(self.cdr))
 
     def __eq__(self, other):
         return (

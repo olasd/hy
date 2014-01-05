@@ -24,6 +24,7 @@ from functools import wraps
 from rply import ParserGenerator
 
 from hy.models.complex import HyComplex
+from hy.models.cons import HyCons
 from hy.models.dict import HyDict
 from hy.models.expression import HyExpression
 from hy.models.float import HyFloat
@@ -98,6 +99,37 @@ def real_main_empty(p):
 @pg.production("paren : LPAREN list_contents RPAREN")
 @set_boundaries
 def paren(p):
+    contents = p[1]
+
+    def reject_spurious_dots(*items):
+        "Reject the spurious dots from items"
+        for list in items:
+            for tok in list:
+                if tok == "." and type(tok) == HySymbol:
+                    raise LexException("Malformed dotted list",
+                                       tok.start_line, tok.start_column)
+
+
+    # Dotted lists are expressions of the form
+    # (a b c . d)
+    # that evaluate to nested cons cells of the form
+    # (a . (b . (c . d)))
+    if len(contents) >= 3 and isinstance(contents[-2], HySymbol) and contents[-2] == ".":
+
+        reject_spurious_dots(contents[:-2], contents[-1:])
+
+        if len(contents) == 3:
+            # Two-item dotted list: return the cons cell directly
+            return HyCons(contents[0], contents[2])
+        else:
+            # Return a nested cons cell
+            return HyCons(contents[0], paren([p[0], contents[1:], p[2]]))
+
+    # Warn preemptively on a malformed dotted list.
+    # Only check for dots after the first item to allow for a potential
+    # attribute accessor shorthand
+    reject_spurious_dots(contents[1:])
+
     return HyExpression(p[1])
 
 
