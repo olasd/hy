@@ -23,6 +23,7 @@ import itertools
 from hy.macros import _wrap_value
 from hy.models import HyObject
 from hy.models.expression import HyExpression
+from hy.models.symbol import HySymbol
 
 
 class HyCons(HyObject):
@@ -36,6 +37,13 @@ class HyCons(HyObject):
 
     def __new__(cls, car, cdr):
         if isinstance(cdr, list):
+
+            # Keep unquotes in the cdr of conses
+            if type(cdr) == HyExpression:
+                if len(cdr) > 0 and type(cdr[0]) == HySymbol:
+                    if cdr[0] in ("unquote", "unquote_splice"):
+                        return super(HyCons, cls).__new__(cls)
+
             return cdr.__class__([_wrap_value(car)] + cdr)
 
         elif cdr is None:
