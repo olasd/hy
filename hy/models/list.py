@@ -28,6 +28,10 @@ class HyList(HyObject, list):
 
     def replace(self, other):
         for x in self:
+            if not isinstance(x, HyObject):
+                raise TypeError("Trying to relocate a list {0!r} "
+                                "containing a non-hy-object {1!r} "
+                                "to replace {2!r}".format(self, x, other))
             x.replace(other)
 
         HyObject.replace(self, other)
