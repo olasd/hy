@@ -38,7 +38,7 @@ from hy.models.dict import HyDict
 from hy.errors import HyCompileError, HyTypeError
 
 import hy.macros
-from hy.macros import require, macroexpand
+from hy.macros import require, macroexpand, reader_macroexpand
 from hy._compat import str_type, long_type, PY33, PY3, PY34
 import hy.importer
 
@@ -1866,7 +1866,7 @@ class HyASTCompiler(object):
         return ret
 
     @builds("defreader")
-    @checkargs(min=2, max=3)
+    @checkargs(min=2)
     def compile_reader(self, expression):
         expression.pop(0)
         name = expression.pop(0)
@@ -1887,6 +1887,23 @@ class HyASTCompiler(object):
         ret = self._compile_time_hack(new_expression)
 
         return ret
+
+    @builds("dispatch_reader_macro")
+    @checkargs(exact=2)
+    def compile_dispatch_reader_macro(self, expression):
+        expression.pop(0)  # dispatch-reader-macro
+        str_char = expression.pop(0)
+        if not type(str_char) == HyString:
+            raise HyTypeError(
+                str_char,
+                "Trying to expand a reader macro using `{0}' instead "
+                "of string".format(type(str_char).__name__),
+            )
+
+        module = self.module_name
+        expr = reader_macroexpand(str_char, expression.pop(0), module)
+
+        return self.compile(expr)
 
     @builds("eval_and_compile")
     def compile_eval_and_compile(self, expression):
